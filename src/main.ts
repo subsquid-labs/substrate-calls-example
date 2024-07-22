@@ -3,22 +3,22 @@ import * as ss58 from '@subsquid/ss58'
 import {decodeHex} from '@subsquid/substrate-processor'
 import {Store, TypeormDatabase} from '@subsquid/typeorm-store'
 import {Account} from './model'
-import {CallItem, ProcessorContext, processor} from './processor'
-import {IdentitySetIdentityCall} from './types/calls'
+import {Call, ProcessorContext, processor} from './processor'
+import {calls} from './types'
 
 processor.run(new TypeormDatabase(), async (ctx) => {
     let identitiesData: IdentityData[] = []
 
     for (let block of ctx.blocks) {
-        for (let item of block.items) {
-            if (item.kind !== 'call' || !item.call.success) continue
+        for (let call of block.calls) {
+            if (!call.success) continue
 
-            switch (item.name) {
-                case 'Identity.set_identity': {
-                    if (!item.call.origin) continue
+            switch (call.name) {
+                case calls.identity.setIdentity.name: {
+                    if (!call.origin) continue
 
-                    let origin = getOriginAccountId(item.call.origin)
-                    let data = getSetIdentity(ctx, item)
+                    let origin = getOriginAccountId(call.origin)
+                    let data = getSetIdentity(ctx, call)
                     identitiesData.push({
                         id: encodeId(origin),
                         ...data,
@@ -26,10 +26,10 @@ processor.run(new TypeormDatabase(), async (ctx) => {
 
                     break
                 }
-                case 'Identity.clear_indentity': {
-                    if (!item.call.origin) continue
+                case calls.identity.clearIdentity.name: {
+                    if (!call.origin) continue
 
-                    let origin = getOriginAccountId(item.call.origin)
+                    let origin = getOriginAccountId(call.origin)
                     identitiesData.push({
                         id: encodeId(origin),
                         display: null,
@@ -109,13 +109,9 @@ function encodeId(id: Uint8Array): string {
     return ss58.codec('kusama').encode(id)
 }
 
-type SetIdentityCallItem = Extract<CallItem, {name: 'Identity.set_identity'}>
-
-function getSetIdentity(ctx: ProcessorContext<Store>, item: SetIdentityCallItem) {
-    let c = new IdentitySetIdentityCall(ctx, item.call)
-
-    if (c.isV1030) {
-        let {info} = c.asV1030
+function getSetIdentity(ctx: ProcessorContext<Store>, call: Call) {
+    if (calls.identity.setIdentity.v1030.is(call)) {
+        let {info} = calls.identity.setIdentity.v1030.decode(call)
         return {
             display: unwrapData(info.display),
             legal: unwrapData(info.legal),
@@ -124,8 +120,8 @@ function getSetIdentity(ctx: ProcessorContext<Store>, item: SetIdentityCallItem)
             email: unwrapData(info.email),
             twitter: null,
         }
-    } else if (c.isV1032) {
-        let {info} = c.asV1032
+    } else if (calls.identity.setIdentity.v1032.is(call)) {
+        let {info} = calls.identity.setIdentity.v1032.decode(call)
         return {
             display: unwrapData(info.display),
             legal: unwrapData(info.legal),
@@ -139,7 +135,7 @@ function getSetIdentity(ctx: ProcessorContext<Store>, item: SetIdentityCallItem)
     }
 }
 
-function unwrapData(data: {__kind: string; value?: Uint8Array}) {
+function unwrapData(data: {__kind: string; value?: string}) {
     switch (data.__kind) {
         case 'None':
         case 'BlakeTwo256':
@@ -148,12 +144,12 @@ function unwrapData(data: {__kind: string; value?: Uint8Array}) {
         case 'ShaThree256':
             return null
         default:
-            return Buffer.from(data.value!).toString('utf-8')
+            return data.value==undefined ? null : Buffer.from(data.value.slice(2), 'hex').toString()
     }
 }
 
 class UknownVersionError extends Error {
     constructor() {
-        super('Uknown verson')
+        super('Unknown verson')
     }
 }

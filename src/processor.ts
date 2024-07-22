@@ -1,34 +1,39 @@
-import {lookupArchive} from '@subsquid/archive-registry'
+import {assertNotNull} from '@subsquid/util-internal'
 import {
-    BatchContext,
-    BatchProcessorCallItem,
-    BatchProcessorEventItem,
-    BatchProcessorItem,
+    BlockHeader,
+    DataHandlerContext,
     SubstrateBatchProcessor,
+    SubstrateBatchProcessorFields,
+    Event as _Event,
+    Call as _Call,
+    Extrinsic as _Extrinsic
 } from '@subsquid/substrate-processor'
 
-export const processor = new SubstrateBatchProcessor()
-    .setDataSource({
-        archive: lookupArchive('kusama', {release: 'FireSquid'}),
-    })
-    .addCall('Identity.set_identity', {
-        data: {
-            call: {
-                args: true,
-                origin: true,
-            },
-        },
-    } as const)
-    .addCall('Identity.clear_indentity', {
-        data: {
-            call: {
-                args: true,
-                origin: true,
-            },
-        },
-    } as const)
+import {calls} from './types'
 
-export type Item = BatchProcessorItem<typeof processor>
-export type EventItem = BatchProcessorEventItem<typeof processor>
-export type CallItem = BatchProcessorCallItem<typeof processor>
-export type ProcessorContext<Store> = BatchContext<Store, Item>
+export const processor = new SubstrateBatchProcessor()
+    .setGateway('https://v2.archive.subsquid.io/network/kusama')
+    .setRpcEndpoint({
+        url: assertNotNull(process.env.RPC_KUSAMA_HTTP, 'No RPC endpoint supplied'),
+        rateLimit: 10,
+    })
+    .addCall({
+        name: [
+            calls.identity.setIdentity.name,
+            calls.identity.clearIdentity.name,
+        ]
+    })
+    .setFields({
+        call: {
+            success: true,
+            origin: true,
+            args: true,
+        }
+    })
+
+export type Fields = SubstrateBatchProcessorFields<typeof processor>
+export type Block = BlockHeader<Fields>
+export type Event = _Event<Fields>
+export type Call = _Call<Fields>
+export type Extrinsic = _Extrinsic<Fields>
+export type ProcessorContext<Store> = DataHandlerContext<Store, Fields>

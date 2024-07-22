@@ -1,11 +1,16 @@
 {
   "outDir": "src/types",
-  "specVersions": "https://kusama.archive.subsquid.io/graphql",
-  "events": [
-  ],
-  "calls": [ 
-    "Identity.set_identity"
-  ],
-  "storage": [
-  ]
+  "specVersions": "https://v2.archive.subsquid.io/metadata/kusama",
+  "pallets": {
+    "Identity": {
+      "events": [
+      ],
+      "calls": [
+        "set_identity",
+        "clear_identity"
+      ],
+      "storage": [
+      ]
+    }
+  }
 }
